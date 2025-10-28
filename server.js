@@ -9,6 +9,51 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
+const socket = io();
+const lobbyDiv = document.getElementById('lobby');
+const waitingRoomDiv = document.getElementById('waitingRoom');
+const playerList = document.getElementById('playerList');
+const currentRoomSpan = document.getElementById('currentRoom');
+const readyBtn = document.getElementById('readyBtn');
+const readyIndicator = document.getElementById('readyIndicator');
+const startBtn = document.getElementById('startBtn');
+// ... resto igual...
+
+document.getElementById('joinBtn').onclick = () => {
+  myName = document.getElementById('playerName').value.trim();
+  myRoom = document.getElementById('roomCode').value.trim().toUpperCase();
+  if (!myName || !myRoom) {
+    alert("Debes poner tu nombre y código de sala.");
+    return;
+  }
+  // Cambio inmediato (antes del backend)
+  lobbyDiv.classList.add('hidden');
+  waitingRoomDiv.classList.remove('hidden');
+  currentRoomSpan.textContent = myRoom;
+  playerList.innerHTML = `<li>${myName} (esperando…)</li>`;
+
+  // Emitir joinRoom
+  socket.emit('joinRoom', { roomId: myRoom, name: myName }, (ok, roomInfo) => {
+    if (ok) showWaitingRoom(roomInfo);
+    else {
+      lobbyDiv.classList.remove('hidden');
+      waitingRoomDiv.classList.add('hidden');
+      alert("No fue posible unirse/crear sala.");
+    }
+  });
+};
+
+socket.on('roomUpdate', showWaitingRoom);
+
+function showWaitingRoom(roomInfo) {
+  waitingRoomDiv.classList.remove('hidden');
+  currentRoomSpan.textContent = roomInfo.id;
+  playerList.innerHTML = "";
+  roomInfo.players.forEach(p => {
+    playerList.innerHTML += `<li>${p.name}${roomInfo.host===p.id ? ' <span class="text-purple-400">(Host)</span>':''}${p.ready ? ' ✔️':''}</li>`;
+  });
+  // resto igual...
+}
 
 app.use(express.static(path.join(__dirname, "public")));
 app.get("*", (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
