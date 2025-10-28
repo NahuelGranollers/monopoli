@@ -106,5 +106,29 @@ io.on("connection", socket => {
     }
   });
 });
+document.getElementById('joinBtn').onclick = () => {
+  myName = document.getElementById('playerName').value.trim();
+  myRoom = document.getElementById('roomCode').value.trim().toUpperCase();
+  if (!myName || !myRoom) {
+    alert("Debes poner tu nombre y código de sala.");
+    return;
+  }
+  // --- CAMBIO DE PANTALLA INMEDIATO ---
+  lobbyDiv.classList.add('hidden');
+  waitingRoomDiv.classList.remove('hidden');
+  currentRoomSpan.textContent = myRoom;
+  playerList.innerHTML = `<li>${myName} (esperando…)</li>`;
+
+  // --- Ahora intenta realmente unirse/crear sala ---
+  socket.emit('joinRoom', { roomId: myRoom, name: myName }, (ok, roomInfo) => {
+    if (ok) showWaitingRoom(roomInfo);
+    else {
+      // Si falla, volver al lobby y mostrar error
+      lobbyDiv.classList.remove('hidden');
+      waitingRoomDiv.classList.add('hidden');
+      alert('No se pudo unirse o crear sala. Inténtalo de nuevo.');
+    }
+  });
+};
 
 server.listen(3000, () => console.log("http://localhost:3000"));
