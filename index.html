@@ -1,54 +1,98 @@
-
 <!DOCTYPE html>
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Monopoly Online con React</title>
+    <title>Monopoly Online con Salas (Vanilla JS)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              'monopoly-bg': '#cde6d0',
-              'monopoly-board': '#fafaf8',
-              'monopoly-tile': '#f7f7f5',
-              'property-brown': '#955436',
-              'property-light-blue': '#aae0fa',
-              'property-pink': '#d93a96',
-              'property-orange': '#f7941d',
-              'property-red': '#ed1b24',
-              'property-yellow': '#fff200',
-              'property-green': '#1fb25a',
-              'property-dark-blue': '#0072bb',
-            },
-            fontFamily: {
-              'sans': ['"Century Gothic"', '"Trebuchet MS"', 'sans-serif'],
-              'display': ['"Kabel Heavy"', 'sans-serif'],
-            }
-          },
-        },
+        theme: { /* colores y fuentes como ya tienes arriba */ }
       }
     </script>
     <style>
       @import url('https://fonts.cdnfonts.com/css/kabel-heavy');
     </style>
-  <script type="importmap">
-{
-  "imports": {
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "immer": "https://aistudiocdn.com/immer@^10.2.0"
-  }
-}
-</script>
-<link rel="stylesheet" href="/index.css">
-</head>
-  <body class="bg-monopoly-bg">
-    <div id="root"></div>
-    <script type="module" src="/index.tsx"></script>
+    <link rel="stylesheet" href="/index.css">
+  </head>
+  <body class="bg-monopoly-bg font-sans">
+    <div class="max-w-xl mx-auto mt-12 p-8 bg-monopoly-board rounded shadow-lg">
+      <h1 class="text-3xl font-display mb-4 text-center">Salas de Monopoly Online</h1>
+      <div id="new-room" class="mb-6 flex flex-col space-y-2 text-center">
+        <input id="playerName" class="border px-4 py-2 rounded" placeholder="Tu nombre" />
+        <button id="createRoomBtn" class="bg-property-green text-white px-4 py-2 rounded font-bold hover:bg-green-700">Crear sala</button>
+      </div>
+      <div>
+        <h2 class="text-xl font-bold mb-2 text-monopoly-dark-blue">Salas activas:</h2>
+        <ul id="roomsList" class="space-y-2"></ul>
+      </div>
+      <div id="roomJoined" class="hidden mt-6 p-4 bg-property-light-blue rounded text-center"></div>
+    </div>
+
+    <script>
+      // --- Mock de las salas (estático, local, sin backend ni sockets)
+      const rooms = {};
+      const roomsList = document.getElementById("roomsList");
+      const createRoomBtn = document.getElementById("createRoomBtn");
+      const playerNameInput = document.getElementById("playerName");
+      const roomJoinedDiv = document.getElementById("roomJoined");
+
+      function renderRooms() {
+        roomsList.innerHTML = "";
+        for (let code in rooms) {
+          const room = rooms[code];
+          const li = document.createElement("li");
+          li.className = "flex items-center justify-between p-2 border rounded bg-monopoly-tile";
+          li.innerHTML = `
+            <span><b>Código:</b> <span class="text-property-dark-blue">${code}</span> —
+              <b>Jugadores:</b> ${room.players.length}/6</span>
+            <button class="joinRoomBtn bg-property-red text-white px-2 py-1 rounded font-bold" data-code="${code}">Unirse</button>
+          `;
+          roomsList.appendChild(li);
+        }
+        document.querySelectorAll(".joinRoomBtn").forEach(btn => {
+          btn.onclick = joinRoom;
+        });
+      }
+
+      function createRoom() {
+        const name = playerNameInput.value.trim();
+        if (!name) return alert("Escribe tu nombre primero.");
+        const code = Math.random().toString(36).substring(2,8).toUpperCase();
+        rooms[code] = {
+          code,
+          players: [{ name }]
+        };
+        renderRooms();
+        showJoinedRoom(code, name);
+      }
+
+      function joinRoom(event) {
+        const code = event.target.dataset.code;
+        const name = playerNameInput.value.trim();
+        if (!name) return alert("Escribe tu nombre primero.");
+        if (!rooms[code].players.some(p => p.name === name))
+          rooms[code].players.push({ name });
+        renderRooms();
+        showJoinedRoom(code, name);
+      }
+
+      function showJoinedRoom(code, name) {
+        roomJoinedDiv.innerHTML = `
+          <h3 class="text-2xl font-display mb-2">Sala ${code} unida</h3>
+          <p>Bienvenido, <b>${name}</b>. Jugadores en la sala:</p>
+          <ul>
+            ${rooms[code].players.map(p => `<li class="font-bold">${p.name}</li>`).join("")}
+          </ul>
+        `;
+        roomJoinedDiv.classList.remove("hidden");
+        setTimeout(renderRooms, 100);
+      }
+
+      createRoomBtn.onclick = createRoom;
+      // Primera render
+      renderRooms();
+    </script>
   </body>
 </html>
