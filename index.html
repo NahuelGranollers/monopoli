@@ -2,77 +2,61 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>Unirse a Salas Monopoly Online</title>
+  <title>Unirse o Crear Sala Monopoly Online</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="/socket.io/socket.io.js"></script>
 </head>
 <body class="bg-blue-50 min-h-screen flex items-center justify-center">
-  <div class="w-full max-w-2xl bg-white rounded shadow-xl p-8">
-    <h1 class="text-2xl font-bold mb-4">Salas Activas de Monopoly</h1>
-    <div class="mb-4 flex space-x-2">
-      <input id="playerName" class="border px-3 py-2 rounded w-full" placeholder="Tu nombre" />
+  <div class="w-full max-w-md bg-white rounded shadow-xl p-8">
+    <h1 class="text-2xl font-bold mb-4 text-center">Lobby Monopoly Online</h1>
+    <div class="mb-6 flex flex-col space-y-2">
+      <input id="playerName" class="border px-3 py-2 rounded" placeholder="Tu nombre" />
+      <input id="roomCode" class="border px-3 py-2 rounded uppercase" placeholder="Código de sala" maxlength="6" />
+      <button id="joinBtn" class="bg-blue-600 text-white font-bold px-3 py-2 rounded">Entrar</button>
     </div>
-    <ul id="roomsList" class="space-y-4 mb-4"></ul>
-    <div id="roomJoined" class="hidden p-4 bg-green-100 rounded"></div>
+    <div id="roomJoined" class="hidden mt-6 p-4 bg-green-100 rounded"></div>
   </div>
   
   <script>
     const socket = io();
-
     const playerNameInput = document.getElementById('playerName');
-    const roomsList = document.getElementById('roomsList');
+    const roomCodeInput = document.getElementById('roomCode');
+    const joinBtn = document.getElementById('joinBtn');
     const roomJoinedDiv = document.getElementById('roomJoined');
 
-    // Escucha actualización de salas
-    socket.on('roomsUpdate', (rooms) => {
-      renderRooms(rooms);
-    });
-
-    function renderRooms(rooms) {
-      roomsList.innerHTML = '';
-      if (rooms.length === 0) {
-        roomsList.innerHTML = '<li class="text-gray-500">No hay salas activas.</li>';
-        return;
-      }
-      rooms.forEach(room => {
-        const li = document.createElement('li');
-        li.className = "flex items-center justify-between border p-3 rounded";
-        li.innerHTML = `
-          <span>
-            <b>Sala:</b> <span class="text-blue-800 text-lg">${room.id}</span>
-            — <b>Jugadores:</b> ${room.players.length}/${room.maxPlayers}
-          </span>
-          <button
-            class="joinRoomBtn bg-blue-600 text-white font-bold px-3 py-1 rounded"
-            data-room="${room.id}"
-          >Unirse</button>
-        `;
-        roomsList.appendChild(li);
-      });
-
-      document.querySelectorAll('.joinRoomBtn').forEach(btn => {
-        btn.onclick = (event) => {
-          const roomId = event.target.dataset.room;
-          const name = playerNameInput.value.trim();
-          if (!name) return alert("Escribe tu nombre.");
-          socket.emit('joinRoom', { roomId, name }, (ok, roomInfo) => {
-            if (ok) showJoinedRoom(roomInfo, name);
-            else alert("No se puede unir a esta sala.");
+    joinBtn.onclick = () => {
+      const name = playerNameInput.value.trim();
+      const roomId = roomCodeInput.value.trim().toUpperCase();
+      if (!name || !roomId) return alert("Debes escribir tu nombre y el código de sala.");
+      // Unirse (o crear si no existe)
+      socket.emit('joinRoom', { roomId, name }, (ok, roomInfo) => {
+        if (ok) showJoinedRoom(roomInfo, name, roomId);
+        else {
+          // Si sala no existe, créala
+          socket.emit('createRoom', { name, maxPlayers: 6 }, (newId, info) => {
+            showJoinedRoom(info, name, newId);
           });
-        };
+        }
       });
-    }
+    };
 
-    function showJoinedRoom(room, name) {
-      roomJoinedDiv.className = "block p-4 bg-green-100 rounded";
+    function showJoinedRoom(room, name, roomId) {
+      roomJoinedDiv.className = "block mt-6 p-4 bg-green-100 rounded";
       roomJoinedDiv.innerHTML = `
-        <h2 class="text-xl font-bold mb-2">¡Unido a la sala <span class="text-blue-800">${room.id}</span>!</h2>
-        <p>¡Bienvenido, <b>${name}</b>!</p>
+        <h2 class="text-xl font-bold mb-2">¡Unido a la sala <span class="text-blue-800">${roomId}</span>!</h2>
+        <p>Bienvenido, <b>${name}</b></p>
         <p>Jugadores en la sala:</p>
         <ul>${room.players.map(p => `<li>${p.name}</li>`).join('')}</ul>
-        <a href="/" class="underline text-blue-600 block mt-2">Volver al lobby</a>
+        <button onclick="location.reload()" class="mt-3 bg-blue-500 text-white px-2 py-1 rounded">Volver al lobby</button>
       `;
     }
+
+    // (Opcional: actualizar lista de jugadores en tiempo real)
+    socket.on('roomUpdate', function(roomInfo) {
+      let name = playerNameInput.value.trim();
+      let roomId = roomCodeInput.value.trim().toUpperCase();
+      showJoinedRoom(roomInfo, name, roomId);
+    });
   </script>
 </body>
 </html>
