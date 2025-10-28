@@ -10,8 +10,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// Servir frontend compilado
-app.use(express.static(path.join(__dirname, "dist")));
+app.use(express.static(__dirname + "/dist"));
 app.get("*", (req, res) => res.sendFile(path.join(__dirname, "dist", "index.html")));
 
 class GameRoom {
@@ -19,8 +18,8 @@ class GameRoom {
     this.id = id;
     this.players = [];
     this.maxPlayers = maxPlayers;
-    this.host = null;
-    this.state = null;
+    this.host = null;        // socket.id
+    this.state = null;       // Estado del juego (set con startGame)
   }
   addPlayer(socketId, name) {
     if (this.players.some(p => p.id === socketId)) return false;
@@ -49,12 +48,18 @@ class GameRoom {
     };
   }
   startGame() {
-    // Inicializa el estado de partida real
     this.state = {
-      players: this.players.map(p=>({ id:p.id, name:p.name, money:p.money, pos:0 })),
+      players: this.players.map(p => ({
+        id: p.id,
+        name: p.name,
+        money: p.money,
+        pos: 0
+      })),
       turn: 0,
       lastRoll: null
     };
+    // Reset readiness
+    this.players.forEach(p => p.ready = false);
   }
   applyRoll(value) {
     const player = this.state.players[this.state.turn];
@@ -68,7 +73,7 @@ class GameRoom {
 const rooms = {};
 
 function broadcastRooms() {
-  io.emit("roomsUpdate", Object.values(rooms).map(r=>r.getInfo()));
+  io.emit("roomsUpdate", Object.values(rooms).map(r => r.getInfo()));
 }
 
 io.on("connection", socket => {
@@ -112,13 +117,13 @@ io.on("connection", socket => {
 
   socket.on("syncAction", ({ roomId, action }) => {
     const room = rooms[roomId];
-    // Lógica de dados y turno
+    if (!room) return;
     if (action.type === "roll") {
       room.applyRoll(action.value);
       io.to(roomId).emit("syncAction", { type: "roll", value: action.value });
       io.to(roomId).emit("gameStart", room.getGameState());
     }
-    // Extiende: compra, pagos, tarjetas, jail, etc.
+    // Aquí puedes ampliar para compras, pagos, tarjetas, etc…
   });
 
   socket.on("leaveRoom", ({ roomId }) => {
@@ -143,6 +148,6 @@ io.on("connection", socket => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, "0.0.0.0", () => {
-  console.log(`Monopoly Multiplayer server running on http://0.0.0.0:${PORT}`);
+server.listen(PORT, () => {
+  console.log(`Monopoly server running at http://localhost:${PORT}`);
 });

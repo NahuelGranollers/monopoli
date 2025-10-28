@@ -2,12 +2,12 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Monopoly Dark con Sala de Espera</title>
+  <title>Monopoly Sala de Espera – Online</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="/socket.io/socket.io.js"></script>
   <style>
-    html,body{background:#181a1b !important;color:#eee;font-family:'Century Gothic',sans-serif;}
+    html,body{background:#181a1b;color:#eee;font-family:'Century Gothic',sans-serif;}
     .token{transition:all 0.3s cubic-bezier(.68,-0.55,.27,1.55);position:absolute;
       width:32px;height:32px;border-radius:50%;box-shadow:0 2px 6px #0004;
       text-align:center;line-height:32px;font-weight:bold;font-size:1.2em;
@@ -21,9 +21,9 @@
     .pos-tile{
       position:absolute;width:60px;height:60px;border:1px solid #444;background:#232729;
       border-radius:10px;display:flex;align-items:center;justify-content:center;
-      color:#eee;font-size:0.9em;box-shadow:0 2px 18px #0006;}
-    ::selection{background:#0cf3;}
+      color:#eee;font-size:0.85em;box-shadow:0 2px 18px #0006;}
     .tile-special{background:#2f3140;color:#3cf;}
+    ::selection{background:#0cf3;}
   </style>
 </head>
 <body class="bg-[#181a1b] min-h-screen flex items-center justify-center">
@@ -31,7 +31,7 @@
 
     <!-- Lobby principal -->
     <div id="lobby">
-      <h1 class="text-4xl font-bold mb-6 text-center">Monopoly <span class="text-blue-300">Dark Online</span></h1>
+      <h1 class="text-4xl font-bold mb-6 text-center">Monopoly <span class="text-blue-300">Online</span></h1>
       <div class="flex flex-col gap-4 max-w-sm mx-auto mb-10">
         <input id="playerName" class="border px-4 py-2 rounded bg-[#181a1b] text-[#eee] border-[#555]" placeholder="Tu nombre" maxlength="16" />
         <input id="roomCode" class="border px-4 py-2 rounded bg-[#181a1b] text-[#eee] border-[#555] uppercase" placeholder="Código sala" maxlength="8" />
@@ -57,7 +57,8 @@
       <h2 class="text-xl font-bold mb-4 text-blue-100">Partida Monopoly — Sala <span id="roomGame"></span></h2>
       <div id="playersInfo" class="mb-6"></div>
       <div id="boardParent" class="flex justify-center">
-        <div id="board" class="relative" style="width:730px;height:402px;background:#181a1b;border:2px solid #333;box-shadow:0 8px 32px #000a;border-radius:16px;"></div>
+        <div id="board" class="relative"
+          style="width:730px;height:402px;background:#181a1b;border:2px solid #333;box-shadow:0 8px 32px #000a;border-radius:16px;"></div>
       </div>
       <div id="gameActions" class="mt-8 flex flex-col items-center gap-2">
         <button id="rollBtn" class="bg-yellow-500 text-black px-6 py-2 rounded font-bold shadow hover:bg-yellow-600 text-xl">Tirar dado</button>
@@ -67,7 +68,7 @@
     </div>
   </div>
   <script>
-    // --- Tablero de 20 casillas para demo
+    // Tablero demo (20 casillas, expándelo si quieres real)
     const boardTiles = [
       {x:0,y:0,name:"Salida"},{x:1,y:0,name:"Calle 1",$:60},{x:2,y:0,name:"Suerte",special:1},{x:3,y:0,name:"Calle 2",$:80},
       {x:4,y:0,name:"Impuesto",special:1},{x:5,y:0,name:"Calle 3",$:90},{x:5,y:1,name:"Calle 4",$:100},{x:5,y:2,name:"Comunidad",special:1},
@@ -76,7 +77,7 @@
       {x:0,y:2,name:"Calle10",$:160},{x:0,y:1,name:"Comunidad",special:1},{x:2,y:2,name:"Calle 11",$:180},{x:3,y:2,name:"Calle 12",$:200}
     ];
 
-    // --- SOCKET.IO ---
+    // SOCKET.IO & lógica salas
     const socket = io();
     const lobbyDiv = document.getElementById('lobby');
     const salasPanel = document.getElementById('salasPanel');
@@ -104,9 +105,9 @@
     }
     socket.on('roomsUpdate', actualizarSalasPanel);
 
-    joinBtn.onclick = () => {
-      myName = playerNameInput.value.trim();
-      myRoom = roomCodeInput.value.trim().toUpperCase();
+    document.getElementById('joinBtn').onclick = () => {
+      myName = document.getElementById('playerName').value.trim();
+      myRoom = document.getElementById('roomCode').value.trim().toUpperCase();
       if (!myName || !myRoom) return alert("Debes poner tu nombre y código de sala.");
       socket.emit('joinRoom', { roomId: myRoom, name: myName }, (ok, roomInfo) => {
         if (ok) showWaitingRoom(roomInfo);
@@ -133,14 +134,12 @@
         if (p.ready) readyCount++;
         playerList.innerHTML += `<li>${p.name}${roomInfo.host===p.id ? ' <span class="text-purple-400">(Host)</span>':''}${readyTag}</li>`;
       });
-      // Botón empezar visible SOLO para host si todos listos y >1 jugador
       if (roomInfo.players.length > 1 && roomInfo.host === mySocketId && readyCount === roomInfo.players.length) {
         startBtn.classList.remove('hidden');
       } else {
         startBtn.classList.add('hidden');
       }
     }
-
     readyBtn.onclick = () => {
       readyBtn.classList.add('hidden');
       readyIndicator.classList.remove('hidden');
