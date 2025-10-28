@@ -1,0 +1,6 @@
+
+{
+  "name": "Monopoly Online en Español",
+  "description": "Una versión moderna y en línea del clásico juego de mesa Monopoly para hasta 6 jugadores, construida con React y Tailwind CSS. Este es un juego multijugador local.",
+  "requestFramePermissions": []
+}
