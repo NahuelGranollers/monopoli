@@ -2,61 +2,154 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>Unirse o Crear Sala Monopoly Online</title>
+  <title>Monopoly Online Multijugador</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="/socket.io/socket.io.js"></script>
 </head>
-<body class="bg-blue-50 min-h-screen flex items-center justify-center">
-  <div class="w-full max-w-md bg-white rounded shadow-xl p-8">
-    <h1 class="text-2xl font-bold mb-4 text-center">Lobby Monopoly Online</h1>
-    <div class="mb-6 flex flex-col space-y-2">
-      <input id="playerName" class="border px-3 py-2 rounded" placeholder="Tu nombre" />
-      <input id="roomCode" class="border px-3 py-2 rounded uppercase" placeholder="Código de sala" maxlength="6" />
-      <button id="joinBtn" class="bg-blue-600 text-white font-bold px-3 py-2 rounded">Entrar</button>
+<body class="bg-monopoly-bg min-h-screen flex items-center justify-center font-sans">
+  <div class="max-w-2xl mx-auto w-full bg-white shadow-lg rounded-lg p-8">
+    <div id="lobby">
+      <h1 class="text-3xl font-bold text-center mb-6">Monopoly Online</h1>
+      <div class="flex flex-col gap-4">
+        <input id="playerName" class="border px-4 py-2 rounded" placeholder="Tu nombre" maxlength="16" />
+        <input id="roomCode" class="border px-4 py-2 rounded uppercase" placeholder="Código de sala o sala a crear" maxlength="6" />
+        <button id="joinBtn" class="bg-blue-600 text-white font-bold px-4 py-2 rounded shadow hover:bg-blue-700">Entrar/Crear Sala</button>
+      </div>
     </div>
-    <div id="roomJoined" class="hidden mt-6 p-4 bg-green-100 rounded"></div>
+
+    <div id="waitingRoom" class="hidden mt-8">
+      <h2 class="text-2xl font-bold text-blue-700 mb-2">Sala <span id="currentRoom"></span></h2>
+      <div class="mb-4">Jugadores en la sala:</div>
+      <ul id="playerList" class="mb-4"></ul>
+      <button id="startBtn" class="bg-green-600 text-white font-bold px-4 py-2 rounded shadow hover:bg-green-700 hidden">Empezar partida</button>
+    </div>
+
+    <div id="gameBoard" class="hidden mt-8">
+      <h2 class="text-xl font-bold mb-2">Partida Monopoly — Sala <span id="roomGame"></span></h2>
+      <div id="gamePlayers" class="mb-2"></div>
+      <div id="monopolyBoard" class="grid grid-cols-4 gap-2 bg-monopoly-board p-6 rounded shadow">
+        <!-- Un tablero muy simple: puedes expandirlo -->
+        <div class="border p-4 font-bold text-center bg-property-brown">Salida</div>
+        <div class="border p-4 text-center">Calle 1</div>
+        <div class="border p-4 text-center bg-property-light-blue">Calle 2</div>
+        <div class="border p-4 text-center">Calle 3</div>
+        <!-- Repite/expande según tu diseño -->
+      </div>
+      <div id="gameActions" class="mt-4">
+        <!-- Controles de juego (ejemplo: tirar dado) -->
+        <button id="rollBtn" class="bg-yellow-500 text-white px-4 py-2 rounded font-bold shadow hover:bg-yellow-600">Tirar dado</button>
+        <div id="gameMsg" class="mt-2 text-xl text-mono"></div>
+      </div>
+      <button onclick="location.reload()" class="mt-8 text-blue-800 underline">Salir y Volver al Lobby</button>
+    </div>
   </div>
   
   <script>
     const socket = io();
+    const lobbyDiv = document.getElementById('lobby');
+    const waitingRoomDiv = document.getElementById('waitingRoom');
+    const gameBoardDiv = document.getElementById('gameBoard');
+    const joinBtn = document.getElementById('joinBtn');
     const playerNameInput = document.getElementById('playerName');
     const roomCodeInput = document.getElementById('roomCode');
-    const joinBtn = document.getElementById('joinBtn');
-    const roomJoinedDiv = document.getElementById('roomJoined');
+    const playerList = document.getElementById('playerList');
+    const currentRoomSpan = document.getElementById('currentRoom');
+    const startBtn = document.getElementById('startBtn');
+    const roomGameSpan = document.getElementById('roomGame');
+    const gamePlayersDiv = document.getElementById('gamePlayers');
+    const rollBtn = document.getElementById('rollBtn');
+    const gameMsgDiv = document.getElementById('gameMsg');
+
+    let myName = "";
+    let myRoom = "";
+    let gameStarted = false;
+    let gameState = {players: [], turn: 0, lastRoll: null};
 
     joinBtn.onclick = () => {
-      const name = playerNameInput.value.trim();
-      const roomId = roomCodeInput.value.trim().toUpperCase();
-      if (!name || !roomId) return alert("Debes escribir tu nombre y el código de sala.");
-      // Unirse (o crear si no existe)
-      socket.emit('joinRoom', { roomId, name }, (ok, roomInfo) => {
-        if (ok) showJoinedRoom(roomInfo, name, roomId);
-        else {
-          // Si sala no existe, créala
-          socket.emit('createRoom', { name, maxPlayers: 6 }, (newId, info) => {
-            showJoinedRoom(info, name, newId);
+      myName = playerNameInput.value.trim();
+      myRoom = roomCodeInput.value.trim().toUpperCase();
+      if (!myName || !myRoom) return alert("Escribe tu nombre y código de sala.");
+      // Intentar unirse/crear
+      socket.emit('joinRoom', { roomId: myRoom, name: myName }, (ok, roomInfo) => {
+        if (ok) {
+          showWaitingRoom(roomInfo);
+        } else {
+          // Si no existe, la crea automáticamente
+          socket.emit('createRoom', { name: myName, maxPlayers: 6 }, (newId, info) => {
+            myRoom = newId;
+            showWaitingRoom(info);
           });
         }
       });
     };
 
-    function showJoinedRoom(room, name, roomId) {
-      roomJoinedDiv.className = "block mt-6 p-4 bg-green-100 rounded";
-      roomJoinedDiv.innerHTML = `
-        <h2 class="text-xl font-bold mb-2">¡Unido a la sala <span class="text-blue-800">${roomId}</span>!</h2>
-        <p>Bienvenido, <b>${name}</b></p>
-        <p>Jugadores en la sala:</p>
-        <ul>${room.players.map(p => `<li>${p.name}</li>`).join('')}</ul>
-        <button onclick="location.reload()" class="mt-3 bg-blue-500 text-white px-2 py-1 rounded">Volver al lobby</button>
-      `;
+    // Actualización dinámica de jugadores en sala y mostrar botón de empezar si eres host
+    socket.on('roomUpdate', function(roomInfo) {
+      showWaitingRoom(roomInfo);
+    });
+
+    function showWaitingRoom(roomInfo) {
+      lobbyDiv.classList.add('hidden');
+      waitingRoomDiv.classList.remove('hidden');
+      currentRoomSpan.textContent = roomInfo.id;
+      playerList.innerHTML = "";
+      roomInfo.players.forEach(p => {
+        playerList.innerHTML += `<li>${p.name}${roomInfo.host===p.id ? ' <span class="text-green-600">(Host)</span>' : ''}</li>`;
+      });
+      // Si eres host muestra botón de empezar
+      if (roomInfo.players.length > 1 && roomInfo.host === socket.id) {
+        startBtn.classList.remove('hidden');
+      } else {
+        startBtn.classList.add('hidden');
+      }
     }
 
-    // (Opcional: actualizar lista de jugadores en tiempo real)
-    socket.on('roomUpdate', function(roomInfo) {
-      let name = playerNameInput.value.trim();
-      let roomId = roomCodeInput.value.trim().toUpperCase();
-      showJoinedRoom(roomInfo, name, roomId);
+    // Host empieza la partida
+    startBtn.onclick = () => {
+      socket.emit('startGame', { roomId: myRoom });
+    };
+
+    // Cuando comienza la partida
+    socket.on('gameStart', state => {
+      waitingRoomDiv.classList.add('hidden');
+      gameBoardDiv.classList.remove('hidden');
+      roomGameSpan.textContent = myRoom;
+      gameState = state;
+      updateGameUI();
     });
+
+    // Ejemplo: tirar dado, actualiza turno y resultado
+    rollBtn.onclick = () => {
+      if (gameState.players[gameState.turn].name !== myName) {
+        gameMsgDiv.textContent = "No es tu turno";
+        return;
+      }
+      const roll = Math.floor(Math.random()*6+1);
+      socket.emit('syncAction', { roomId: myRoom, action: {type: "roll", value: roll}});
+    };
+
+    socket.on('syncAction', action => {
+      if (action.type === "roll") {
+        gameState.lastRoll = action.value;
+        gameMsgDiv.textContent = `${gameState.players[gameState.turn].name} tira el dado y saca un ${action.value}`;
+        // Avanzar turno
+        gameState.turn = (gameState.turn + 1) % gameState.players.length;
+        updateGameUI();
+      }
+    });
+
+    function updateGameUI() {
+      if (!gameState.players.length) return;
+      gamePlayersDiv.innerHTML = "Jugadores: " + gameState.players.map((p,i)=>
+        `<span class="px-2 ${i===gameState.turn?'bg-green-300 rounded font-bold':''}">${p.name}</span>`
+      ).join('');
+      if (gameState.lastRoll)
+        gameMsgDiv.textContent = `${gameState.players[(gameState.turn-1+gameState.players.length)%gameState.players.length].name} sacó un ${gameState.lastRoll}`;
+      else
+        gameMsgDiv.textContent = `Turno de ${gameState.players[gameState.turn].name}`;
+    }
+
   </script>
 </body>
 </html>
