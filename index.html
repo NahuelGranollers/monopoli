@@ -68,19 +68,8 @@
     </div>
   </div>
   <script>
-    // Tablero demo (20 casillas, expándelo si quieres real)
-    const boardTiles = [
-      {x:0,y:0,name:"Salida"},{x:1,y:0,name:"Calle 1",$:60},{x:2,y:0,name:"Suerte",special:1},{x:3,y:0,name:"Calle 2",$:80},
-      {x:4,y:0,name:"Impuesto",special:1},{x:5,y:0,name:"Calle 3",$:90},{x:5,y:1,name:"Calle 4",$:100},{x:5,y:2,name:"Comunidad",special:1},
-      {x:5,y:3,name:"Calle 5",$:110},{x:5,y:4,name:"Cárcel",special:1},{x:4,y:4,name:"Calle 6",$:120},{x:3,y:4,name:"Suerte",special:1},
-      {x:2,y:4,name:"Calle 7",$:130},{x:1,y:4,name:"Calle 8",$:140},{x:0,y:4,name:"Parking",special:1},{x:0,y:3,name:"Calle 9",$:150},
-      {x:0,y:2,name:"Calle10",$:160},{x:0,y:1,name:"Comunidad",special:1},{x:2,y:2,name:"Calle 11",$:180},{x:3,y:2,name:"Calle 12",$:200}
-    ];
-
-    // SOCKET.IO & lógica salas
     const socket = io();
     const lobbyDiv = document.getElementById('lobby');
-    const salasPanel = document.getElementById('salasPanel');
     const waitingRoomDiv = document.getElementById('waitingRoom');
     const playerList = document.getElementById('playerList');
     const currentRoomSpan = document.getElementById('currentRoom');
@@ -109,6 +98,14 @@
       myName = document.getElementById('playerName').value.trim();
       myRoom = document.getElementById('roomCode').value.trim().toUpperCase();
       if (!myName || !myRoom) return alert("Debes poner tu nombre y código de sala.");
+
+      // CAMBIO: cambia la pantalla inmediatamente a sala de espera
+      lobbyDiv.classList.add('hidden');
+      waitingRoomDiv.classList.remove('hidden');
+      currentRoomSpan.textContent = myRoom;
+      playerList.innerHTML = `<li>${myName} (tú)</li>`; // tu propio nombre en la lista (mínimo feedback)
+
+      // Solicita servidor entrada real
       socket.emit('joinRoom', { roomId: myRoom, name: myName }, (ok, roomInfo) => {
         if (ok) showWaitingRoom(roomInfo);
         else socket.emit('createRoom', { name: myName, maxPlayers: 6 }, (newId, info) => {
