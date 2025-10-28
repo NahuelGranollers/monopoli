@@ -2,108 +2,126 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Monopoly Online Multijugador</title>
+  <title>Monopoly Dark Multijugador</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="/socket.io/socket.io.js"></script>
   <style>
-    /* Animación sencilla para fichas */
-    .token {
-      transition: all 0.4s cubic-bezier(.68,-0.55,.27,1.55);
-      position: absolute;
-      width: 32px; height: 32px;
-      border-radius: 50%; box-shadow: 0 2px 6px #0002;
-      background-color: #444;
-      text-align: center;
-      line-height: 32px;
-      font-weight: bold;
-      font-size: 1.2em;
-      color: #fff;
+    html,body{
+      background:#181a1b !important;color:#eee;
+      font-family:'Century Gothic',sans-serif;
+      transition:background 0.3s;
     }
-    .token.p0 { background: #f00; }
-    .token.p1 { background: #07b; }
-    .token.p2 { background: #fb0; }
-    .token.p3 { background: #0a2; }
-    .pos-tile {
-      position: absolute; width: 64px; height: 64px;
-      border: 2px solid #ccc;
-      box-sizing: border-box;
-      background: #f7f7f5;
-      border-radius: 10px;
+    .pos-tile{position:absolute;width:60px;height:60px;border:1px solid #444;
+      background:#232729;border-radius:10px;
+      display:flex;align-items:center;justify-content:center;
+      color:#eee;font-size:0.85em;box-shadow:0 2px 18px #0006;
     }
+    .token{transition:all 0.3s cubic-bezier(.68,-0.55,.27,1.55);position:absolute;
+      width:32px;height:32px;border-radius:50%;box-shadow:0 2px 6px #0004;
+      text-align:center;line-height:32px;font-weight:bold;font-size:1.2em;
+      color:#fff;border:2px solid #fff;
+    }
+    .token.p0{background:#fc0;}
+    .token.p1{background:#06f;}
+    .token.p2{background:#e00;}
+    .token.p3{background:#397;}
+    .token.p4{background:#ff6;}
+    .token.p5{background:#0fa;}
+    .token.p6{background:#f6f;}
+    .token.p7{background:#aaa;}
+    #gameActions button:disabled{opacity:0.4 !important;cursor:not-allowed;}
+    ::selection{background:#0cf3;}
+    .tile-special{background:#2f3140;color:#3cf;}
   </style>
 </head>
-<body class="bg-monopoly-bg min-h-screen flex items-center justify-center font-sans">
-  <div class="max-w-4xl mx-auto w-full bg-white shadow-lg rounded-lg p-8">
-
+<body class="bg-[#181a1b] min-h-screen flex items-center justify-center">
+  <div class="max-w-5xl mx-auto w-full bg-[#232729] shadow-lg rounded-lg p-8 relative">
+    <!-- Lobby y sistema de salas -->
     <div id="lobby">
-      <h1 class="text-4xl font-display mb-6 text-center">Monopoly Online</h1>
-      <div class="flex flex-col gap-4 max-w-sm mx-auto">
-        <input id="playerName" class="border px-4 py-2 rounded" placeholder="Tu nombre" maxlength="16" />
-        <input id="roomCode" class="border px-4 py-2 rounded uppercase" 
-          placeholder="Código de sala (6 letras/números)" maxlength="6" />
-        <button id="joinBtn" class="bg-blue-600 text-white font-bold px-4 py-2 rounded shadow hover:bg-blue-700">Unirse o Crear Sala</button>
+      <h1 class="text-4xl font-bold mb-6 text-center">Monopoly <span class="text-blue-300">Dark Online</span></h1>
+      <div class="flex flex-col gap-4 max-w-sm mx-auto mb-10">
+        <input id="playerName" class="border px-4 py-2 rounded bg-[#181a1b] text-[#eee] border-[#555]" placeholder="Tu nombre" maxlength="16" />
+        <input id="roomCode" class="border px-4 py-2 rounded bg-[#181a1b] text-[#eee] border-[#555] uppercase" placeholder="Código sala (ej. MONO22)" maxlength="8" />
+        <button id="joinBtn" class="bg-blue-600 text-white font-bold px-4 py-2 rounded shadow hover:bg-blue-700">Entrar/Crear Sala</button>
       </div>
+      <div id="salasPanel" class="mb-8"></div>
+      <div id="lobbyNote" class="text-[#aaa] text-center"></div>
     </div>
 
-    <div id="waitingRoom" class="hidden mt-8">
-      <h2 class="text-2xl font-bold text-blue-700 mb-2">Sala <span id="currentRoom"></span></h2>
-      <div class="mb-4">Jugadores en la sala:</div>
+    <!-- Sala de espera -->
+    <div id="waitingRoom" class="hidden mt-6">
+      <h2 class="text-2xl font-bold mb-2 text-blue-300">Sala <span id="currentRoom"></span></h2>
+      <div class="mb-2">Jugadores en la sala:</div>
       <ul id="playerList" class="mb-4"></ul>
-      <button id="startBtn" class="bg-green-600 text-white font-bold px-4 py-2 rounded shadow hover:bg-green-700 hidden">Empezar partida</button>
+      <button id="readyBtn" class="bg-purple-600 text-white font-bold px-3 py-2 rounded shadow hover:bg-purple-700">¡Listo!</button>
+      <span id="readyIndicator" class="ml-2 text-green-400 font-bold hidden">Esperando jugadores...</span>
+      <button id="startBtn" class="bg-green-700 text-white font-bold px-4 py-2 rounded shadow hover:bg-green-600 hidden">Empezar partida</button>
+      <button onclick="location.reload()" class="mt-3 underline text-[#73f] block">Salir y Volver</button>
     </div>
 
+    <!-- Juego Monopoly -->
     <div id="gameBoard" class="hidden mt-8">
-      <h2 class="text-xl font-bold mb-2">Partida Monopoly</h2>
-      <div id="playersInfo" class="mb-4"></div>
-      <div id="board" class="relative mx-auto" style="width:550px;height:550px;background:#fafaf8;border-radius:20px;box-shadow:0 8px 32px #0001;"></div>
+      <h2 class="text-xl font-bold mb-4 text-blue-100">Partida Monopoly — Sala <span id="roomGame"></span></h2>
+      <div id="playersInfo" class="mb-6"></div>
+      <div id="boardParent" class="flex justify-center">
+        <div id="board" class="relative" style="width:730px;height:402px;background:#181a1b;border:2px solid #333;box-shadow:0 8px 32px #000a;border-radius:16px;"></div>
+      </div>
       <div id="gameActions" class="mt-8 flex flex-col items-center gap-2">
-        <button id="rollBtn" class="bg-yellow-500 text-white px-6 py-2 rounded font-bold shadow hover:bg-yellow-600 text-xl">Tirar dado</button>
+        <button id="rollBtn" class="bg-yellow-500 text-black px-6 py-2 rounded font-bold shadow hover:bg-yellow-600 text-xl">Tirar dado</button>
         <div id="gameMsg" class="mt-2 text-lg font-bold text-center"></div>
       </div>
-      <button onclick="location.reload()" class="mt-8 underline text-blue-700">Salir y Volver al Lobby</button>
+      <button onclick="location.reload()" class="mt-8 underline text-blue-400">Salir y Volver</button>
     </div>
-
   </div>
   <script>
-    // --- Configuración de tablero tipo Monopoly clásico (solo 12 posiciones para demo visual, puedes expandir a 40)
+    // --- Tablero básico 20 casillas para demo (expande a 40 fácil)
     const boardTiles = [
-      {x:6,y:0,name:"Salida"},             // 0
-      {x:11,y:0,name:"Calle 1"},           // 1
-      {x:11,y:6,name:"Calle 2"},           // 2
-      {x:11,y:11,name:"Calle 3"},          // 3
-      {x:6,y:11,name:"Calle 4"},           // 4
-      {x:0,y:11,name:"Calle 5"},           // 5
-      {x:0,y:6,name:"Calle 6"},           // 6
-      {x:0,y:0,name:"Cárcel"},             // 7
-      {x:3,y:0,name:"Suerte"},             // 8
-      {x:8,y:0,name:"Comunidad"},          // 9
-      {x:11,y:3,name:"Parking"},           // 10
-      {x:11,y:8,name:"Impuesto"},          // 11
+      {x:0,y:0,name:"Salida"},     {x:1,y:0,name:"Calle 1",$:60},
+      {x:2,y:0,name:"Suerte",special:1},{x:3,y:0,name:"Calle 2",$:80},
+      {x:4,y:0,name:"Impuesto",special:1},{x:5,y:0,name:"Calle 3",$:90},
+      {x:5,y:1,name:"Calle 4",$:100},{x:5,y:2,name:"Comunidad",special:1},
+      {x:5,y:3,name:"Calle 5",$:110},{x:5,y:4,name:"Cárcel",special:1},
+      {x:4,y:4,name:"Calle 6",$:120},{x:3,y:4,name:"Suerte",special:1},
+      {x:2,y:4,name:"Calle 7",$:130},{x:1,y:4,name:"Calle 8",$:140},
+      {x:0,y:4,name:"Parking",special:1},{x:0,y:3,name:"Calle 9",$:150},
+      {x:0,y:2,name:"Calle 10",$:160},{x:0,y:1,name:"Comunidad",special:1},
+      {x:2,y:2,name:"Calle 11",$:180},{x:3,y:2,name:"Calle 12",$:200}
     ];
 
-    // --- Cliente SOCKET.IO ---
+    // --- SOCKET.IO ---
     const socket = io();
     const lobbyDiv = document.getElementById('lobby');
+    const salasPanel = document.getElementById('salasPanel');
     const waitingRoomDiv = document.getElementById('waitingRoom');
-    const joinBtn = document.getElementById('joinBtn');
-    const playerNameInput = document.getElementById('playerName');
-    const roomCodeInput = document.getElementById('roomCode');
     const playerList = document.getElementById('playerList');
     const currentRoomSpan = document.getElementById('currentRoom');
+    const readyBtn = document.getElementById('readyBtn');
+    const readyIndicator = document.getElementById('readyIndicator');
     const startBtn = document.getElementById('startBtn');
     const gameBoardDiv = document.getElementById('gameBoard');
-    const boardDiv = document.getElementById('board');
+    const roomGameSpan = document.getElementById('roomGame');
+    const playersInfoDiv = document.getElementById('playersInfo');
     const rollBtn = document.getElementById('rollBtn');
     const gameMsgDiv = document.getElementById('gameMsg');
-    const playersInfoDiv = document.getElementById('playersInfo');
+    const boardDiv = document.getElementById('board');
+    let myName = "", myRoom = "", isReady=false, gameState=null, mySocketId=null;
 
-    let myName = "", myRoom = "", gameState = null;
+    function actualizarSalasPanel(salas) {
+      if(!salas || !salas.length) {
+        salasPanel.innerHTML = `<div class="text-[#888] text-sm text-center">No hay salas activas. Inicia una nueva con tu código.</div>`;
+        return;
+      }
+      salasPanel.innerHTML = `<div class="mb-2 text-[#ccc] text-center font-mono text-xs">Salas activas:</div>` +
+        salas.map(s => `<div class="px-1 py-1"><span class="text-blue-400">${s.id}</span> (${s.players.length}/${s.maxPlayers})</div>`).join("");
+    }
+
+    socket.on('roomsUpdate', actualizarSalasPanel);
 
     joinBtn.onclick = () => {
       myName = playerNameInput.value.trim();
       myRoom = roomCodeInput.value.trim().toUpperCase();
-      if (!myName || !myRoom) return alert("Debes poner tu nombre y sala.");
+      if (!myName || !myRoom) return alert("Debes poner tu nombre y código de sala.");
       socket.emit('joinRoom', { roomId: myRoom, name: myName }, (ok, roomInfo) => {
         if (ok) showWaitingRoom(roomInfo);
         else socket.emit('createRoom', { name: myName, maxPlayers: 6 }, (newId, info) => {
@@ -116,20 +134,33 @@
     socket.on('roomUpdate', showWaitingRoom);
 
     function showWaitingRoom(roomInfo) {
+      mySocketId = socket.id;
       lobbyDiv.classList.add('hidden');
       waitingRoomDiv.classList.remove('hidden');
       currentRoomSpan.textContent = roomInfo.id;
+      readyBtn.classList.remove('hidden');
+      readyIndicator.classList.add('hidden');
       playerList.innerHTML = "";
+      let readyCount = 0;
       roomInfo.players.forEach(p => {
-        playerList.innerHTML += `<li>${p.name}${roomInfo.host===p.id ? ' <span class="text-green-700">(Host)</span>' : ''}</li>`;
+        let readyTag = p.ready ? `<span class="ml-2 text-green-400 text-xs font-bold">✔</span>` : "";
+        if (p.ready) readyCount++;
+        playerList.innerHTML += `<li>${p.name}${roomInfo.host===p.id ? ' <span class="text-purple-400">(Host)</span>':''}${readyTag}</li>`;
       });
-      // Botón de empezar sólo para el host y si hay más de un jugador
-      if (roomInfo.players.length > 1 && roomInfo.host === socket.id) {
+      // Mostrar botón de empezar solo para host
+      if (roomInfo.players.length > 1 && roomInfo.host === mySocketId && readyCount === roomInfo.players.length) {
         startBtn.classList.remove('hidden');
       } else {
         startBtn.classList.add('hidden');
       }
     }
+
+    readyBtn.onclick = () => {
+      readyBtn.classList.add('hidden');
+      readyIndicator.classList.remove('hidden');
+      isReady=true;
+      socket.emit('markReady', { roomId: myRoom, ready: true });
+    };
 
     startBtn.onclick = () => {
       socket.emit('startGame', { roomId: myRoom });
@@ -138,56 +169,61 @@
     socket.on('gameStart', state => {
       waitingRoomDiv.classList.add('hidden');
       gameBoardDiv.classList.remove('hidden');
+      roomGameSpan.textContent = myRoom;
       gameState = state;
       renderGameState();
     });
 
     rollBtn.onclick = () => {
-      if (gameState.players[gameState.turn].id !== socket.id) {
+      // Solo puede tirar quien le toca el turno
+      const me = gameState.players.find(p=>p.id===mySocketId);
+      if (gameState.players[gameState.turn].id !== mySocketId) {
         gameMsgDiv.textContent = "No es tu turno";
         return;
       }
-      const roll = Math.floor(Math.random()*6+1);
-      socket.emit('syncAction', { roomId: myRoom, action: {type:"roll",value:roll}});
+      rollBtn.disabled=true;
+      setTimeout(()=>{
+        let roll = Math.floor(Math.random()*6+1) + Math.floor(Math.random()*6+1);
+        socket.emit('syncAction', { roomId: myRoom, action: {type:"roll",value:roll}});
+        rollBtn.disabled=false;
+      },600);
     };
 
     socket.on('syncAction', action => {
       if (action.type === "roll") {
         let curr = gameState.players[gameState.turn];
         let oldPos = curr.pos;
-        curr.pos = (curr.pos + action.value) % boardTiles.length;
-        animateToken(gameState.turn, oldPos, curr.pos, () => {
-          gameMsgDiv.textContent = `${curr.name} avanza a "${boardTiles[curr.pos].name}" con ${action.value}`;
+        curr.pos = (curr.pos+action.value)%boardTiles.length;
+        animateToken(gameState.turn, oldPos, curr.pos,() => {
+          gameMsgDiv.innerHTML = `<span class="text-yellow-300">${curr.name}</span> avanza a <span class="text-blue-300">"${boardTiles[curr.pos].name}"</span> con <b>${action.value}</b>.`;
         });
         gameState.lastRoll = action.value;
-        gameState.turn = (gameState.turn + 1) % gameState.players.length;
+        gameState.turn = (gameState.turn+1)%gameState.players.length;
         renderGameState();
       }
-      // Extiende lógica aquí: compra, tarjetas, jail, etc.
+      // Aquí puedes expandir con lógica de compra, tarjetas, jail, pagos, etc.
     });
 
     function renderGameState() {
-      // Info de jugadores/turno
       playersInfoDiv.innerHTML = gameState.players.map((player,i)=>
-        `<span class="px-2 ${i==gameState.turn?"bg-green-200 rounded font-bold":""}">
-          <b>${player.name}</b> ($${player.money}) ${player.pos===7?"⛓️ Jail":""}
+        `<span class="px-2 rounded font-bold ${i==gameState.turn?"bg-blue-900 text-white":""}" style="display:inline-block">
+          ${player.name} <span class="text-yellow-400">$${player.money}</span>
+          <span class="ml-2">${boardTiles[player.pos].name}</span>
         </span>`
       ).join(" ");
-      // Info de turno
-      gameMsgDiv.textContent = `Turno de <b>${gameState.players[gameState.turn].name}</b>`;
-      // Render tablero y tokens
+      gameMsgDiv.innerHTML = `<span class="text-blue-200">Turno de</span> <b>${gameState.players[gameState.turn].name}</b>`;
       renderBoardAndTokens();
     }
 
     function renderBoardAndTokens() {
       boardDiv.innerHTML = "";
       boardTiles.forEach((tile,i)=>{
-        const left = tile.x*44, top = tile.y*44;
-        boardDiv.innerHTML += `<div class="pos-tile absolute" style="left:${left}px;top:${top}px;">
-          <div class="text-xs text-center">${tile.name}</div>
+        let l=tile.x*36+20,t=tile.y*72+24;
+        boardDiv.innerHTML += `<div class="pos-tile absolute ${tile.special?'tile-special':''}" style="left:${l}px;top:${t}px;">
+          <div class="font-bold">${tile.name}</div>
+          ${tile.$ ? `<div class="text-xs text-yellow-300 font-mono">\$${tile.$}</div>`:""}
         </div>`;
       });
-      // Tokens
       gameState.players.forEach((p,i)=>{
         placeTokenAnimated(i,p.pos);
       });
@@ -195,25 +231,24 @@
 
     function placeTokenAnimated(idx,pos) {
       const tile = boardTiles[pos];
-      if(!tile) return;
+      if (!tile) return;
       const tokenId = 'token'+idx;
       let oldToken = document.getElementById(tokenId);
-      const left = tile.x*44+12, top = tile.y*44+12;
+      let l=tile.x*36+42, t=tile.y*72+30+(idx*6);
       if(!oldToken) {
         let token = document.createElement('div');
         token.id = tokenId;
-        token.className = 'token p'+(idx%4);
+        token.className = 'token p'+(idx%8);
         token.innerText = String.fromCharCode(65+idx);
-        token.style.left = left+'px';
-        token.style.top = top+'px';
+        token.style.left = l+'px';
+        token.style.top = t+'px';
         boardDiv.appendChild(token);
       } else {
-        oldToken.style.left = left+'px';
-        oldToken.style.top = top+'px';
+        oldToken.style.left = l+'px';
+        oldToken.style.top = t+'px';
       }
     }
 
-    // Animación simple de movimiento entre casillas (mejorable con GSAP/anime.js)
     function animateToken(idx, from, to, cb) {
       let steps = ((to-from+boardTiles.length)%boardTiles.length)||1;
       let curr = from, count=0;
@@ -222,9 +257,9 @@
         placeTokenAnimated(idx,curr);
         if(++count>=steps) {
           clearInterval(interval);
-          cb && cb();
+          cb&&cb();
         }
-      }, 200);
+      }, 120);
     }
   </script>
 </body>
