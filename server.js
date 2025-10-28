@@ -10,6 +10,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
+// Servir frontend compilado
 app.use(express.static(path.join(__dirname, "dist")));
 app.get("*", (req, res) => res.sendFile(path.join(__dirname, "dist", "index.html")));
 
@@ -19,11 +20,12 @@ class GameRoom {
     this.players = [];
     this.maxPlayers = maxPlayers;
     this.host = null;
+    this.state = null;
   }
   addPlayer(socketId, name) {
     if (this.players.some(p => p.id === socketId)) return false;
     if (this.players.length >= this.maxPlayers) return false;
-    const player = { id: socketId, name, ready: false };
+    const player = { id: socketId, name, ready: false, pos: 0, money: 1500 };
     this.players.push(player);
     if (!this.host) this.host = socketId;
     return player;
@@ -38,10 +40,36 @@ class GameRoom {
     if (player) player.ready = ready;
   }
   isAllReady() { return this.players.length > 1 && this.players.every(p => p.ready); }
-  getInfo() { return { id: this.id, players: this.players, maxPlayers: this.maxPlayers, host: this.host }; }
+  getInfo() {
+    return {
+      id: this.id,
+      players: this.players.map(p => ({ id: p.id, name: p.name, ready: p.ready })),
+      maxPlayers: this.maxPlayers,
+      host: this.host
+    };
+  }
+  startGame() {
+    // Inicializa el estado de partida real
+    this.state = {
+      players: this.players.map(p=>({ id:p.id, name:p.name, money:p.money, pos:0 })),
+      turn: 0,
+      lastRoll: null
+    };
+  }
+  applyRoll(value) {
+    const player = this.state.players[this.state.turn];
+    player.pos = (player.pos + value) % 20; // 20 casillas demo
+    this.state.lastRoll = value;
+    this.state.turn = (this.state.turn + 1) % this.state.players.length;
+  }
+  getGameState() { return this.state; }
 }
 
 const rooms = {};
+
+function broadcastRooms() {
+  io.emit("roomsUpdate", Object.values(rooms).map(r=>r.getInfo()));
+}
 
 io.on("connection", socket => {
   socket.on("createRoom", ({ name, maxPlayers }, cb) => {
@@ -50,46 +78,67 @@ io.on("connection", socket => {
     rooms[roomId].addPlayer(socket.id, name);
     socket.join(roomId);
     cb(roomId, rooms[roomId].getInfo());
-    io.emit("roomsUpdate", Object.values(rooms).map(r => r.getInfo()));
+    io.to(roomId).emit("roomUpdate", rooms[roomId].getInfo());
+    broadcastRooms();
   });
+
   socket.on("joinRoom", ({ roomId, name }, cb) => {
-    const room = rooms[roomId];
+    let room = rooms[roomId];
     if (room && room.addPlayer(socket.id, name)) {
       socket.join(roomId);
       cb(true, room.getInfo());
       io.to(roomId).emit("roomUpdate", room.getInfo());
     } else cb(false);
-    io.emit("roomsUpdate", Object.values(rooms).map(r => r.getInfo()));
+    broadcastRooms();
   });
+
   socket.on("markReady", ({ roomId, ready }) => {
-    const room = rooms[roomId];
+    let room = rooms[roomId];
     if (!room) return;
     room.markReady(socket.id, ready);
     io.to(roomId).emit("roomUpdate", room.getInfo());
     if (room.isAllReady()) {
-      io.to(roomId).emit("gameStart", room.state);
+      room.startGame();
+      io.to(roomId).emit("gameStart", room.getGameState());
     }
   });
-  socket.on("syncAction", ({ roomId, action }) => {
-    io.to(roomId).emit("syncAction", action);
+
+  socket.on("startGame", ({ roomId }) => {
+    let room = rooms[roomId];
+    if (!room) return;
+    room.startGame();
+    io.to(roomId).emit("gameStart", room.getGameState());
   });
-  socket.on("leaveRoom", ({ roomId }) => {
+
+  socket.on("syncAction", ({ roomId, action }) => {
     const room = rooms[roomId];
+    // Lógica de dados y turno
+    if (action.type === "roll") {
+      room.applyRoll(action.value);
+      io.to(roomId).emit("syncAction", { type: "roll", value: action.value });
+      io.to(roomId).emit("gameStart", room.getGameState());
+    }
+    // Extiende: compra, pagos, tarjetas, jail, etc.
+  });
+
+  socket.on("leaveRoom", ({ roomId }) => {
+    let room = rooms[roomId];
     if (!room) return;
     room.removePlayer(socket.id);
     socket.leave(roomId);
     if (room.players.length === 0) delete rooms[roomId];
     else io.to(roomId).emit("roomUpdate", room.getInfo());
-    io.emit("roomsUpdate", Object.values(rooms).map(r => r.getInfo()));
+    broadcastRooms();
   });
+
   socket.on("disconnect", () => {
     for (const roomId in rooms) {
-      const room = rooms[roomId];
+      let room = rooms[roomId];
       room.removePlayer(socket.id);
       if (room.players.length === 0) delete rooms[roomId];
       else io.to(roomId).emit("roomUpdate", room.getInfo());
     }
-    io.emit("roomsUpdate", Object.values(rooms).map(r => r.getInfo()));
+    broadcastRooms();
   });
 });
 

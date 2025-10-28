@@ -2,47 +2,39 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Monopoly Dark Multijugador</title>
+  <title>Monopoly Dark con Sala de Espera</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="/socket.io/socket.io.js"></script>
   <style>
-    html,body{
-      background:#181a1b !important;color:#eee;
-      font-family:'Century Gothic',sans-serif;
-      transition:background 0.3s;
-    }
-    .pos-tile{position:absolute;width:60px;height:60px;border:1px solid #444;
-      background:#232729;border-radius:10px;
-      display:flex;align-items:center;justify-content:center;
-      color:#eee;font-size:0.85em;box-shadow:0 2px 18px #0006;
-    }
+    html,body{background:#181a1b !important;color:#eee;font-family:'Century Gothic',sans-serif;}
     .token{transition:all 0.3s cubic-bezier(.68,-0.55,.27,1.55);position:absolute;
       width:32px;height:32px;border-radius:50%;box-shadow:0 2px 6px #0004;
       text-align:center;line-height:32px;font-weight:bold;font-size:1.2em;
-      color:#fff;border:2px solid #fff;
-    }
+      color:#fff;border:2px solid #fff;}
     .token.p0{background:#fc0;}
     .token.p1{background:#06f;}
     .token.p2{background:#e00;}
     .token.p3{background:#397;}
     .token.p4{background:#ff6;}
     .token.p5{background:#0fa;}
-    .token.p6{background:#f6f;}
-    .token.p7{background:#aaa;}
-    #gameActions button:disabled{opacity:0.4 !important;cursor:not-allowed;}
+    .pos-tile{
+      position:absolute;width:60px;height:60px;border:1px solid #444;background:#232729;
+      border-radius:10px;display:flex;align-items:center;justify-content:center;
+      color:#eee;font-size:0.9em;box-shadow:0 2px 18px #0006;}
     ::selection{background:#0cf3;}
     .tile-special{background:#2f3140;color:#3cf;}
   </style>
 </head>
 <body class="bg-[#181a1b] min-h-screen flex items-center justify-center">
-  <div class="max-w-5xl mx-auto w-full bg-[#232729] shadow-lg rounded-lg p-8 relative">
-    <!-- Lobby y sistema de salas -->
+  <div class="max-w-4xl mx-auto w-full bg-[#232729] shadow-lg rounded-lg p-8 relative">
+
+    <!-- Lobby principal -->
     <div id="lobby">
       <h1 class="text-4xl font-bold mb-6 text-center">Monopoly <span class="text-blue-300">Dark Online</span></h1>
       <div class="flex flex-col gap-4 max-w-sm mx-auto mb-10">
         <input id="playerName" class="border px-4 py-2 rounded bg-[#181a1b] text-[#eee] border-[#555]" placeholder="Tu nombre" maxlength="16" />
-        <input id="roomCode" class="border px-4 py-2 rounded bg-[#181a1b] text-[#eee] border-[#555] uppercase" placeholder="Código sala (ej. MONO22)" maxlength="8" />
+        <input id="roomCode" class="border px-4 py-2 rounded bg-[#181a1b] text-[#eee] border-[#555] uppercase" placeholder="Código sala" maxlength="8" />
         <button id="joinBtn" class="bg-blue-600 text-white font-bold px-4 py-2 rounded shadow hover:bg-blue-700">Entrar/Crear Sala</button>
       </div>
       <div id="salasPanel" class="mb-8"></div>
@@ -75,18 +67,13 @@
     </div>
   </div>
   <script>
-    // --- Tablero básico 20 casillas para demo (expande a 40 fácil)
+    // --- Tablero de 20 casillas para demo
     const boardTiles = [
-      {x:0,y:0,name:"Salida"},     {x:1,y:0,name:"Calle 1",$:60},
-      {x:2,y:0,name:"Suerte",special:1},{x:3,y:0,name:"Calle 2",$:80},
-      {x:4,y:0,name:"Impuesto",special:1},{x:5,y:0,name:"Calle 3",$:90},
-      {x:5,y:1,name:"Calle 4",$:100},{x:5,y:2,name:"Comunidad",special:1},
-      {x:5,y:3,name:"Calle 5",$:110},{x:5,y:4,name:"Cárcel",special:1},
-      {x:4,y:4,name:"Calle 6",$:120},{x:3,y:4,name:"Suerte",special:1},
-      {x:2,y:4,name:"Calle 7",$:130},{x:1,y:4,name:"Calle 8",$:140},
-      {x:0,y:4,name:"Parking",special:1},{x:0,y:3,name:"Calle 9",$:150},
-      {x:0,y:2,name:"Calle 10",$:160},{x:0,y:1,name:"Comunidad",special:1},
-      {x:2,y:2,name:"Calle 11",$:180},{x:3,y:2,name:"Calle 12",$:200}
+      {x:0,y:0,name:"Salida"},{x:1,y:0,name:"Calle 1",$:60},{x:2,y:0,name:"Suerte",special:1},{x:3,y:0,name:"Calle 2",$:80},
+      {x:4,y:0,name:"Impuesto",special:1},{x:5,y:0,name:"Calle 3",$:90},{x:5,y:1,name:"Calle 4",$:100},{x:5,y:2,name:"Comunidad",special:1},
+      {x:5,y:3,name:"Calle 5",$:110},{x:5,y:4,name:"Cárcel",special:1},{x:4,y:4,name:"Calle 6",$:120},{x:3,y:4,name:"Suerte",special:1},
+      {x:2,y:4,name:"Calle 7",$:130},{x:1,y:4,name:"Calle 8",$:140},{x:0,y:4,name:"Parking",special:1},{x:0,y:3,name:"Calle 9",$:150},
+      {x:0,y:2,name:"Calle10",$:160},{x:0,y:1,name:"Comunidad",special:1},{x:2,y:2,name:"Calle 11",$:180},{x:3,y:2,name:"Calle 12",$:200}
     ];
 
     // --- SOCKET.IO ---
@@ -115,7 +102,6 @@
       salasPanel.innerHTML = `<div class="mb-2 text-[#ccc] text-center font-mono text-xs">Salas activas:</div>` +
         salas.map(s => `<div class="px-1 py-1"><span class="text-blue-400">${s.id}</span> (${s.players.length}/${s.maxPlayers})</div>`).join("");
     }
-
     socket.on('roomsUpdate', actualizarSalasPanel);
 
     joinBtn.onclick = () => {
@@ -147,7 +133,7 @@
         if (p.ready) readyCount++;
         playerList.innerHTML += `<li>${p.name}${roomInfo.host===p.id ? ' <span class="text-purple-400">(Host)</span>':''}${readyTag}</li>`;
       });
-      // Mostrar botón de empezar solo para host
+      // Botón empezar visible SOLO para host si todos listos y >1 jugador
       if (roomInfo.players.length > 1 && roomInfo.host === mySocketId && readyCount === roomInfo.players.length) {
         startBtn.classList.remove('hidden');
       } else {
@@ -161,10 +147,7 @@
       isReady=true;
       socket.emit('markReady', { roomId: myRoom, ready: true });
     };
-
-    startBtn.onclick = () => {
-      socket.emit('startGame', { roomId: myRoom });
-    };
+    startBtn.onclick = () => { socket.emit('startGame', { roomId: myRoom }); };
 
     socket.on('gameStart', state => {
       waitingRoomDiv.classList.add('hidden');
@@ -175,7 +158,6 @@
     });
 
     rollBtn.onclick = () => {
-      // Solo puede tirar quien le toca el turno
       const me = gameState.players.find(p=>p.id===mySocketId);
       if (gameState.players[gameState.turn].id !== mySocketId) {
         gameMsgDiv.textContent = "No es tu turno";
@@ -188,7 +170,6 @@
         rollBtn.disabled=false;
       },600);
     };
-
     socket.on('syncAction', action => {
       if (action.type === "roll") {
         let curr = gameState.players[gameState.turn];
@@ -201,9 +182,7 @@
         gameState.turn = (gameState.turn+1)%gameState.players.length;
         renderGameState();
       }
-      // Aquí puedes expandir con lógica de compra, tarjetas, jail, pagos, etc.
     });
-
     function renderGameState() {
       playersInfoDiv.innerHTML = gameState.players.map((player,i)=>
         `<span class="px-2 rounded font-bold ${i==gameState.turn?"bg-blue-900 text-white":""}" style="display:inline-block">
@@ -214,7 +193,6 @@
       gameMsgDiv.innerHTML = `<span class="text-blue-200">Turno de</span> <b>${gameState.players[gameState.turn].name}</b>`;
       renderBoardAndTokens();
     }
-
     function renderBoardAndTokens() {
       boardDiv.innerHTML = "";
       boardTiles.forEach((tile,i)=>{
@@ -224,11 +202,8 @@
           ${tile.$ ? `<div class="text-xs text-yellow-300 font-mono">\$${tile.$}</div>`:""}
         </div>`;
       });
-      gameState.players.forEach((p,i)=>{
-        placeTokenAnimated(i,p.pos);
-      });
+      gameState.players.forEach((p,i)=>{ placeTokenAnimated(i,p.pos); });
     }
-
     function placeTokenAnimated(idx,pos) {
       const tile = boardTiles[pos];
       if (!tile) return;
@@ -248,7 +223,6 @@
         oldToken.style.top = t+'px';
       }
     }
-
     function animateToken(idx, from, to, cb) {
       let steps = ((to-from+boardTiles.length)%boardTiles.length)||1;
       let curr = from, count=0;
@@ -256,8 +230,7 @@
         curr = (curr+1)%boardTiles.length;
         placeTokenAnimated(idx,curr);
         if(++count>=steps) {
-          clearInterval(interval);
-          cb&&cb();
+          clearInterval(interval); cb&&cb();
         }
       }, 120);
     }
