@@ -1,10 +1,6 @@
 {
-  "builds": [
-    { "src": "server.js", "use": "@vercel/node" },
-    { "src": "vite.config.js", "use": "@vercel/static-build" }
-  ],
-  "routes": [
-    { "src": "/socket.io/(.*)", "dest": "server.js" },
-    { "src": "/(.*)", "dest": "server.js" }
+  "rewrites": [
+    { "source": "/socket.io/:match*", "destination": "/api/server.js" },
+    { "source": "/:match*", "destination": "/" }
   ]
 }
